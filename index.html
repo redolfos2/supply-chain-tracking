@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supply Chain Tracking Platform</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { text-align: center; }
+        .container { max-width: 600px; margin: auto; }
+        input, button { margin: 10px 0; padding: 8px; width: 100%; }
+        #history { margin-top: 20px; }
+        .stage { border: 1px solid #ccc; padding: 10px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Supply Chain Tracking</h1>
+        <h3>Add Supply Chain Stage</h3>
+        <input id="productId" placeholder="Product ID (e.g., Apple123)" />
+        <input id="stage" placeholder="Stage (e.g., Produced, Shipped)" />
+        <input id="details" placeholder="Details (e.g., Farm A, Truck B)" />
+        <button onclick="addStage()">Add Stage</button>
+        <h3>Product History</h3>
+        <input id="searchProductId" placeholder="Enter Product ID to view history" />
+        <button onclick="getHistory()">View History</button>
+        <div id="history"></div>
+    </div>
+
+    <script>
+        // Адрес развернутого смарт-контракта
+        const contractAddress = "0xD4Eb5fa017d7A35ce260cad651766C1Ea81a3407";
+        // ABI смарт-контракта
+        const contractABI = [
+            {
+                "inputs": [
+                    {
+                        "internalType": "string",
+                        "name": "_productId",
+                        "type": "string"
+                    },
+                    {
+                        "internalType": "string",
+                        "name": "_stage",
+                        "type": "string"
+                    },
+                    {
+                        "internalType": "string",
+                        "name": "_details",
+                        "type": "string"
+                    }
+                ],
+                "name": "addStage",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "string",
+                        "name": "_productId",
+                        "type": "string"
+                    }
+                ],
+                "name": "getHistory",
+                "outputs": [
+                    {
+                        "components": [
+                            {
+                                "internalType": "string",
+                                "name": "stage",
+                                "type": "string"
+                            },
+                            {
+                                "internalType": "string",
+                                "name": "details",
+                                "type": "string"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "timestamp",
+                                "type": "uint256"
+                            }
+                        ],
+                        "internalType": "struct SupplyChain.Stage[]",
+                        "name": "",
+                        "type": "tuple[]"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "string",
+                        "name": "",
+                        "type": "string"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "supplyChain",
+                "outputs": [
+                    {
+                        "internalType": "string",
+                        "name": "stage",
+                        "type": "string"
+                    },
+                    {
+                        "internalType": "string",
+                        "name": "details",
+                        "type": "string"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "timestamp",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            }
+        ];
+
+        // Подключение к MetaMask
+        let provider, signer, contract;
+        async function init() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    await provider.send("eth_requestAccounts", []);
+                    signer = provider.getSigner();
+                    contract = new ethers.Contract(contractAddress, contractABI, signer);
+                    console.log("Contract initialized:", contract.address);
+                } catch (error) {
+                    console.error("Error initializing contract:", error);
+                    alert("Failed to connect to MetaMask: " + error.message);
+                }
+            } else {
+                alert("Please install MetaMask!");
+            }
+        }
+
+        // Добавление этапа поставки
+        async function addStage() {
+            const productId = document.getElementById("productId").value;
+            const stage = document.getElementById("stage").value;
+            const details = document.getElementById("details").value;
+
+            if (!productId || !stage || !details) {
+                alert("Please fill all fields!");
+                return;
+            }
+
+            if (!contract) {
+                alert("Contract not initialized. Please ensure MetaMask is connected and try again.");
+                return;
+            }
+
+            try {
+                const tx = await contract.addStage(productId, stage, details);
+                await tx.wait();
+                alert("Stage added successfully!");
+            } catch (error) {
+                console.error(error);
+                alert("Error adding stage: " + error.message);
+            }
+        }
+
+        // Получение истории продукта
+        async function getHistory() {
+            const productId = document.getElementById("searchProductId").value;
+            if (!productId) {
+                alert("Please enter a Product ID!");
+                return;
+            }
+
+            if (!contract) {
+                alert("Contract not initialized. Please ensure MetaMask is connected and try again.");
+                return;
+            }
+
+            try {
+                const history = await contract.getHistory(productId);
+                const historyDiv = document.getElementById("history");
+                historyDiv.innerHTML = "";
+                history.forEach(stage => {
+                    const date = new Date(stage.timestamp * 1000).toLocaleString();
+                    historyDiv.innerHTML += `
+                        <div class="stage">
+                            <strong>Stage:</strong> ${stage.stage}<br>
+                            <strong>Details:</strong> ${stage.details}<br>
+                            <strong>Timestamp:</strong> ${date}
+                        </div>`;
+                });
+            } catch (error) {
+                console.error(error);
+                alert("Error fetching history: " + error.message);
+            }
+        }
+
+        // Инициализация при загрузке страницы
+        init();
+    </script>
+</body>
+</html>
